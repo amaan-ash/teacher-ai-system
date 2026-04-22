@@ -1,0 +1,25 @@
+# PDF Processing
+PyPDF2==3.0.1
+
+# NLP & ML
+spacy==3.7.4
+scikit-learn==1.4.2
+keybert==0.8.3
+nltk==3.8.1
+
+# Backend
+python-multipart==0.0.9       # For file uploads in FastAPI
+
+# Database
+# sqlite3 is built into Python — no install needed
+
+# Dashboard
+streamlit==1.35.0
+
+# Visualization
+matplotlib==3.9.0
+seaborn==0.13.2
+
+# Utilities
+python-dotenv==1.0.1
+pandas==2.2.2
