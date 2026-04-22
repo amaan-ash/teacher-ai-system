@@ -573,7 +573,6 @@ def render_student_portal():
             "Choose your answer:",
             options=list(option_map.keys()),
             format_func=lambda x: f"{x}. {option_map[x]}",
-            index=None,
             key=f"radio_{q['question_id']}"
         )
 

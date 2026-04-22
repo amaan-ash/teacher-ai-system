@@ -154,8 +154,14 @@ def _get_topic_relevant_sentences(
         exact topic word presence.
     """
     sentences = sent_tokenize(full_text)
-    sentences = [s.strip() for s in sentences if len(s.strip()) > 40]
-
+    sentences = [
+    s.strip()
+    for s in sentences
+    if 40 < len(s.strip()) < 200
+    and not s.strip().lower().startswith(("unit", "chapter", "figure"))
+    and ":" not in s[:20]
+    and not re.match(r"^\d+\.", s.strip())
+]
     topic_words = set(topic_name.lower().split())
 
     # Pass 1: Direct keyword match
@@ -242,72 +248,34 @@ def _score_sentence_for_question(sentence: str) -> float:
     return score
 
 
-def _generate_distractors(
-    correct_answer: str,
-    all_topics: list[str],
-    all_sentences: list[str],
-    count: int = 3
-) -> list[str]:
-    """
-    Generates wrong answer options (distractors) for MCQ.
 
-    Strategy (in priority order):
-    1. Other topic names from the curriculum (most relevant distractors)
-    2. Sentence fragments from unrelated sentences
-    3. Generic fallback placeholders
+def _generate_distractors(correct_answer, all_topics, all_sentences, count=3):
 
-    We ensure distractors:
-    - Are not the correct answer
-    - Are not duplicates of each other
-    - Are roughly similar in length to the correct answer
-    """
     distractors = []
-    correct_lower = correct_answer.lower().strip()
+    correct_lower = correct_answer.lower()
 
-    # Strategy 1: Other topic names
-    topic_distractors = [
-        t for t in all_topics
-        if t.lower().strip() != correct_lower and len(t) > 3
-    ]
-    random.shuffle(topic_distractors)
+    # Prefer other sentences of similar length
+    for sent in all_sentences:
+        sent_clean = sent.strip()
 
-    for t in topic_distractors:
+        if (
+            sent_clean.lower() != correct_lower
+            and 40 < len(sent_clean) < 150
+            and abs(len(sent_clean) - len(correct_answer)) < 50
+        ):
+            distractors.append(sent_clean)
+
         if len(distractors) >= count:
             break
-        if t not in distractors:
-            distractors.append(t)
 
-    # Strategy 2: Sentence fragments
+    # Fallback to topic names if needed
     if len(distractors) < count:
-        random.shuffle(all_sentences)
-        for sent in all_sentences:
+        for topic in all_topics:
+            if topic.lower() not in correct_lower:
+                distractors.append(topic)
+
             if len(distractors) >= count:
                 break
-            # Extract a noun phrase fragment
-            doc = NLP(sent[:200])
-            for chunk in doc.noun_chunks:
-                fragment = chunk.text.strip().title()
-                if (
-                    fragment.lower() != correct_lower
-                    and fragment not in distractors
-                    and len(fragment) > 5
-                    and len(fragment) < 100
-                ):
-                    distractors.append(fragment)
-                    break
-
-    # Strategy 3: Generic fallbacks
-    fallbacks = [
-        "None of the above",
-        "All of the above",
-        "It depends on context",
-        "Cannot be determined"
-    ]
-    for fb in fallbacks:
-        if len(distractors) >= count:
-            break
-        if fb not in distractors:
-            distractors.append(fb)
 
     return distractors[:count]
 
@@ -389,6 +357,7 @@ def generate_questions_for_topic(
 
     questions = []
     used_sentences = set()
+    used_questions = set()
 
     for sentence, _ in scored:
         if len(questions) >= questions_per_topic:
@@ -418,9 +387,14 @@ def generate_questions_for_topic(
             if len(distractors) < 3:
                 continue
 
+            # Prevent duplicate questions
+            if question_text.lower() in used_questions:
+              continue
+
             mcq = _build_mcq(question_text, correct_answer, distractors)
             questions.append(mcq)
             used_sentences.add(sentence)
+            used_questions.add(question_text.lower())
             break   # One question per sentence
 
     return questions
